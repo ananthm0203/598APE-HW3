@@ -11,6 +11,8 @@ int              nplanets;
 int              timesteps;
 constexpr double dt = 0.001;
 constexpr double G  = 6.6743;
+constexpr auto ELEMS_PER_CACHELINE = 64UL / sizeof(double);
+constexpr auto TILE_SIZE           = ELEMS_PER_CACHELINE * 8;
 
 struct PlanetCoords {
     double* x;
@@ -61,10 +63,39 @@ double randomDouble() {
     return ((next << 27) + next2) / (double)(1LL << 53);
 }
 
-void next(const PlanetCoords& planets, PlanetCoords& nextplanets, const double* planet_masses) {
+void next_no_mp(const PlanetCoords& planets, PlanetCoords& nextplanets, const double* planet_masses) {
     nextplanets                        = planets;
     constexpr auto ELEMS_PER_CACHELINE = 64UL / sizeof(double);
     constexpr auto TILE_SIZE           = ELEMS_PER_CACHELINE * 8;
+
+// #pragma omp      parallel for schedule(dynamic)
+#pragma omp tile sizes(TILE_SIZE)
+    for (int i = 0; i < nplanets; ++i) {
+        double accum_vx    = nextplanets.vx[i];
+        double accum_vy    = nextplanets.vy[i];
+        double planet_x    = planets.x[i];
+        double planet_y    = planets.y[i];
+        double planet_mass = planet_masses[i];
+        for (int j = 0; j < nplanets; j++) {
+            double dx              = planets.x[j] - planet_x;
+            double dy              = planets.y[j] - planet_y;
+            double distSqr         = dx * dx + dy * dy + 0.0001;
+            //double sqrt_reciprocal = 1.0 /;
+            double invDist         = planet_mass * planet_masses[j] /  sqrt(distSqr);
+            double invDist3        = invDist * invDist * invDist;
+            accum_vx += dt * dx * invDist3;
+            accum_vy += dt * dy * invDist3;
+        }
+        nextplanets.x[i] += dt * accum_vx;
+        nextplanets.y[i] += dt * accum_vy;
+
+        nextplanets.vx[i] = accum_vx;
+        nextplanets.vy[i] = accum_vy;
+    }
+}
+
+void next_omp(const PlanetCoords& planets, PlanetCoords& nextplanets, const double* planet_masses) {
+    nextplanets                        = planets;
 
 #pragma omp      parallel for schedule(dynamic)
 #pragma omp tile sizes(TILE_SIZE)
@@ -112,15 +143,25 @@ int main(int argc, const char** argv) {
 
     struct timeval start, end;
     gettimeofday(&start, NULL);
-    for (int i = 0; i < (timesteps / 2); i++) {
-        next(planets, nextplanets, planet_masses);
-        next(nextplanets, planets, planet_masses);
-        // printf("x=%f y=%f vx=%f vy=%f\n", planets[nplanets-1].x, planets[nplanets-1].y,
-        // planets[nplanets-1].vx, planets[nplanets-1].vy);
+    if (nplanets < ELEMS_PER_CACHELINE) {
+        for (int i = 0; i < (timesteps / 2); i++) {
+            next_no_mp(planets, nextplanets, planet_masses);
+            next_no_mp(nextplanets, planets, planet_masses);
+        }
+        if (timesteps & 0x1) {
+            next_no_mp(planets, nextplanets, planet_masses);
+        }
     }
-    if (timesteps & 0x1) {
-        next(planets, nextplanets, planet_masses);
+    else {
+        for (int i = 0; i < (timesteps / 2); i++) {
+            next_omp(planets, nextplanets, planet_masses);
+            next_omp(nextplanets, planets, planet_masses);
+        }
+        if (timesteps & 0x1) {
+            next_omp(planets, nextplanets, planet_masses);
+        }
     }
+    
     gettimeofday(&end, NULL);
 
     const auto &endplanets = timesteps & 0x1 ? nextplanets : planets;
