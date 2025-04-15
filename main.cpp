@@ -97,7 +97,7 @@ void next_no_mp(const PlanetCoords& planets, PlanetCoords& nextplanets, const do
 void next_omp(const PlanetCoords& planets, PlanetCoords& nextplanets, const double* planet_masses) {
     nextplanets                        = planets;
 
-#pragma omp      parallel for schedule(dynamic)
+#pragma omp      parallel for
 #pragma omp tile sizes(TILE_SIZE)
     for (int i = 0; i < nplanets; ++i) {
         double accum_vx    = nextplanets.vx[i];
