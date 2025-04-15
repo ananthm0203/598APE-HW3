@@ -2,6 +2,8 @@
 
 This repository contains code for homework 3 of 598APE.
 
+The different optimization branches are `0-reference`, `1-parallelization`, `2-SOA_tiling`, and `main` (this branch). These correlate to the paper optimizations, and you can switch to them to run the code.
+
 This assignment is relatively simple in comparison to HW1 and HW2 to ensure you have enough time to work on the course project.
 
 In particular, this repository is an implementation of an n-body simulator.
