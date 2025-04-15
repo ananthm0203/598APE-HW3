@@ -50,6 +50,7 @@ void next(Planet * __restrict__ planets, Planet * __restrict__ nextplanets) {
    // }
    std::memcpy(nextplanets, planets, sizeof(Planet) * nplanets);
    
+#pragma omp parallel for
    for (int i=0; i<nplanets; i++) {
       for (int j=0; j<nplanets; j++) {
          double dx = planets[j].x - planets[i].x;
@@ -60,9 +61,6 @@ void next(Planet * __restrict__ planets, Planet * __restrict__ nextplanets) {
          nextplanets[i].vx += dt * dx * invDist3;
          nextplanets[i].vy += dt * dy * invDist3;
       }
-   }
-
-   for (int i = 0; i < nplanets; ++i) {
       nextplanets[i].x += dt * nextplanets[i].vx;
       nextplanets[i].y += dt * nextplanets[i].vy;
    }
