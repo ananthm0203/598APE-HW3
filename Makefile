@@ -1,4 +1,4 @@
-FUNC := clang++
+FUNC := clang++-19
 copt := -c 
 OBJ_DIR := ./bin/
 FLAGS := -O3 -lm -gdwarf-4 -Werror -lstdc++ -fopenmp -march=native -ffast-math
